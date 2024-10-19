@@ -1,0 +1,195 @@
+********************************
+PArt one:
+r1: internet share:
+config t
+ ip domain-lookup
+ ip name-server 1.1.1.1 8.8.8.8
+ ip route 0.0.0.0 0.0.0.0 200.0.0.1
+ int fa 0/2/0
+   no shut
+   ip add 200.0.0.12 255.255.255.0
+   ip nat outside
+ int vlan 1
+   no shut
+   ip add 10.12.1.1 255.255.255.0
+   ip nat inside
+ !
+ no ip access-list extended GUSTOSURF
+ ip access-list extended GUSTOSURF
+   deny ip 10.12.0.0 0.0.255.255 10.11.0.0 0.0.255.255
+   deny ip 10.12.0.0 0.0.255.255 10.21.0.0 0.0.255.255
+   deny ip 10.12.0.0 0.0.255.255 10.22.0.0 0.0.255.255
+   deny ip 10.12.0.0 0.0.255.255 10.31.0.0 0.0.255.255
+   deny ip 10.12.0.0 0.0.255.255 10.32.0.0 0.0.255.255
+   deny ip 10.12.0.0 0.0.255.255 10.41.0.0 0.0.255.255
+   deny ip 10.12.0.0 0.0.255.255 10.42.0.0 0.0.255.255
+   deny ip 10.12.0.0 0.0.255.255 10.51.0.0 0.0.255.255
+   deny ip 10.12.0.0 0.0.255.255 10.52.0.0 0.0.255.255
+   deny ip 10.12.0.0 0.0.255.255 10.61.0.0 0.0.255.255
+   deny eigrp any any
+   deny ospf any any
+   permit ip any any
+   exit
+ route-map GUSTONAT 10
+   match ip address GUSTOSURF
+   exit
+ ip nat inside source route-map GUSTONAT interface FastEthernet0/2/0 overload
+end
+ 
+
+
+************************************************
+
+SITE1-R1: to CORP-VPN1
+CONFIG T
+!
+vrf definition CORP-VPN1
+ address-family ipv4
+ exit-address-family
+!
+!
+crypto isakmp policy 10
+ encryption aes
+ hash md5
+ authentication pre-share
+ group 2
+crypto isakmp key cisco address 200.0.0.11
+!         
+crypto ipsec transform-set MYSET esp-aes esp-md5-hmac
+  mode tunnel 
+!
+crypto ipsec profile MyProfile
+set transform-set MYSET
+!
+crypto map vpn 1 ipsec-isakmp 
+ set peer 200.0.0.11
+ set transform-set MYSET
+ match address 101
+!
+interface Tunnel1
+ description vpn-GRE TUNNEL TO r2
+ vrf forwarding CORP-VPN1
+ tunnel source 200.0.0.12
+ tunnel destination 200.0.0.11
+ ip address 172.11.12.2 255.255.255.0
+ !!task 2 sa examMO.
+ tunnel protection ipsec profile MyProfile
+!
+interface fa 0/2/0
+ ip address 200.0.0.12 255.255.255.0
+ ip virtual-reassembly
+ crypto map vpn
+ no shut
+!
+router eigrp CORP-VPN1
+address-family ipv4 unicast autonomous-system 100
+ network 172.11.12.0 0.0.0.255
+ network 10.12.1.0 0.0.0.255
+!
+access-list 101 permit gre host 200.0.0.12 host 200.0.0.11
+!
+
+
+************************************************
+************************************************
+ANOTHER VPN PARTNET USING OSPF.
+************************************************
+************************************************
+
+SITE1-R1: odd:
+CONFIG T
+crypto isakmp policy 1
+ authentication pre-share
+crypto isakmp key cisco address 200.0.0.11
+!         
+crypto ipsec transform-set strong esp-3des esp-sha-hmac 
+!
+crypto map vpn 2 ipsec-isakmp 
+ set peer 200.0.0.11
+ set transform-set strong 
+ match address 102
+!
+no int tunnel 1
+interface Tunnel2
+ description vpn-GRE TUNNEL TO von11
+ ip address 172.11.12.2 255.255.255.0
+ tunnel source 200.0.0.12
+ tunnel destination 200.0.0.11
+!
+!
+no router ospf 1
+router ospf 1
+ network 172.11.12.0 0.0.0.255 area 0
+ network 10.12.1.0 0.0.0.255 area 0
+!
+!
+access-list 102 permit gre host 200.0.0.12 host 200.0.0.11
+!
+
+
+************************************************
+************************************************
+ANOTHER VPN PARTNET USING bgp:
+************************************************
+************************************************
+
+SITE1-R1: odd:
+CONFIG T
+crypto isakmp policy 1
+ authentication pre-share
+crypto isakmp key cisco address 200.0.0.21
+!         
+crypto ipsec transform-set strong esp-3des esp-sha-hmac 
+!
+crypto map vpn 18 ipsec-isakmp 
+ set peer 200.0.0.21
+ set transform-set strong 
+ match address 103
+!
+interface Tunnel 3
+ description vpn-GRE TUNNEL TO 21
+ ip address 172.12.21.1 255.255.255.0
+ tunnel source 200.0.0.12
+ tunnel destination 200.0.0.21
+!
+!
+router bgp 12
+ neighbor 172.12.21.2 remote-as 21
+ network 172.12.21.0 mask 255.255.255.0
+ network 10.12.1.0 mask 255.255.255.0
+!
+!
+access-list 103 permit gre host 200.0.0.12 host 200.0.0.21
+!
+
+
+************************************************
+
+LEVEL VRF AND VPN TOGETHER:
+
+config t
+vrf definition CORP-VPN1
+address-family ipv4
+exit-address-family
+!
+!
+crypto isakmp policy 10
+encr aes
+hash md5
+authentication pre-share
+group 2
+crypto isakmp key cisco address 200.0.0.11
+!
+crypto ipsec transform-set MYSET esp-aes esp-md5-hmac
+mode tunnel
+!
+crypto ipsec profile MyProfile
+set transform-set MYSET
+!
+interface tunnel0
+vrf forwarding CORP-VPN1
+ip address 172.11.12.2 255.255.255.0
+tunnel source 200.0.0.12
+tunnel destination 200.0.0.11
+no shut
+!
