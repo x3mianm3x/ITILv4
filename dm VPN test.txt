@@ -43,7 +43,7 @@ end
 SITE1-R1: to CORP-VPN1
 CONFIG T
 !
-vrf definition CORP-VPN1
+vrf definition CORP-VPN-RENZ
  address-family ipv4
  exit-address-family
 !
@@ -53,7 +53,7 @@ crypto isakmp policy 10
  hash md5
  authentication pre-share
  group 2
-crypto isakmp key cisco address 200.0.0.11
+crypto isakmp key cisco address 200.0.0.22
 !         
 crypto ipsec transform-set MYSET esp-aes esp-md5-hmac
   mode tunnel 
@@ -62,31 +62,29 @@ crypto ipsec profile MyProfile
 set transform-set MYSET
 !
 crypto map vpn 1 ipsec-isakmp 
- set peer 200.0.0.11
+ set peer 200.0.0.22
  set transform-set MYSET
  match address 101
 !
 interface Tunnel1
- description vpn-GRE TUNNEL TO r2
- vrf forwarding CORP-VPN1
- tunnel source 200.0.0.12
- tunnel destination 200.0.0.11
- ip address 172.11.12.2 255.255.255.0
+ description vpn-GRE TUNNEL TO RENZ
+ vrf forwarding CORP-VPN-RENZ
+ tunnel source 200.0.0.21
+ tunnel destination 200.0.0.22
+ ip address 172.21.22.1 255.255.255.0
  !!task 2 sa examMO.
  tunnel protection ipsec profile MyProfile
 !
-interface fa 0/2/0
- ip address 200.0.0.12 255.255.255.0
- ip virtual-reassembly
+interface fa 0/0
  crypto map vpn
  no shut
 !
 router eigrp CORP-VPN1
 address-family ipv4 unicast autonomous-system 100
- network 172.11.12.0 0.0.0.255
- network 10.12.1.0 0.0.0.255
+ network 172.21.22.0 0.0.0.255
+ network 10.21.0.0 0.0.255.255
 !
-access-list 101 permit gre host 200.0.0.12 host 200.0.0.11
+access-list 101 permit gre host 200.0.0.21 host 200.0.0.22
 !
 
 
